@@ -8,6 +8,11 @@ happened.
 This is the Arch-world equivalent of MX Linux's *MX Snapshot*. It works on plain
 **Arch**, **CachyOS**, and **Kiro**.
 
+![A system restored from a recovery ISO, booting to its login screen on a fresh disk](docs/boot-test-login.png)
+
+> Verified end-to-end: a system cloned into a recovery ISO, then restored onto a
+> blank disk, boots all the way to its login screen — as shown above.
+
 ---
 
 ## How it works (the short version)
