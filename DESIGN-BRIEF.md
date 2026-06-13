@@ -72,10 +72,12 @@ is the less-idiomatic but far more robust path for a heterogeneous audience.
 - **Disk space.** The build work directory can need ~2–3× the final ISO size.
   Preflight-check free space and let the user choose the work location.
 - **Privileges.** `mkarchiso` and the restore script both require root.
-- **(Optional) LUKS.** ✅ Implemented in v2. The build detects whether the source
-  root is on LUKS and which initramfs style it uses; the restore defaults to the
-  source's state, lets the user toggle it, and sets up the LUKS container,
-  `crypttab`, hooks, and kernel cmdline to match. Not yet hardware-tested.
+- **(Optional) LUKS.** ✅ Implemented in v2 and VM-tested end-to-end. The build
+  detects whether the source root is on LUKS and which initramfs style it uses;
+  the restore defaults to the source's state, lets the user toggle it, and sets up
+  the LUKS container(s), `crypttab`, hooks, and kernel cmdline to match. Proven on
+  systemd-boot with encrypted root + encrypted separate `/home` (restored disk
+  boots, unlocks both volumes, reaches login).
 
 ## Dependency preflight the script must perform
 
@@ -150,11 +152,17 @@ test bed (details in `~/.claude/projects/-/memory/kiro-vm-access.md`):
 
 - **v1 (single unencrypted root + EFI): proven end-to-end** — build → restore to
   a blank disk → boots to the login screen, verified in the Kiro VM.
-- **v2 additions: code-complete, not yet hardware-tested** — LUKS-on-restore,
-  separate `/home` / `/boot`, ESP-mountpoint detection, faster default
-  compression, personal-use "include my secrets" opt-in, auto-launch of the
-  restore tool on boot, and restore/builder quality-of-life (numbered disk menu,
-  pre-wipe size check, reboot prompt, build log, summary).
-- **Still open:** hardware/VM test of the v2 paths; source-vs-target firmware
-  mismatch (UEFI clone onto a BIOS-only machine, or vice versa).
+- **v2 (encrypted multi-partition): VM-tested end-to-end** — built an encrypted
+  source (LUKS root + separate LUKS `/home`, ESP at `/boot`, systemd-boot, busybox
+  initramfs), restored it to a blank disk, and the restored disk booted, unlocked
+  both LUKS volumes, and reached login. Covers LUKS-on-restore, separate-`/home`
+  recreation, ESP-mountpoint detection, faster compression, secrets opt-in,
+  auto-launch, and the restore/builder QoL (numbered menu, size check, reboot
+  prompt, build log, summary). Two bugs were found and fixed during this test:
+  the ESP must be mounted with an explicit `-t vfat` (auto-detect fails before
+  the vfat module loads), and when `/boot` *is* the ESP the kernel image must be
+  repopulated to `/boot` from `/usr/lib/modules` before `mkinitcpio`.
+- **Still open:** a GRUB round (separate ext4 `/boot` only works under GRUB —
+  systemd-boot can't read ext4 `/boot`); source-vs-target firmware mismatch
+  (UEFI clone onto a BIOS-only machine, or vice versa).
 - Published: https://github.com/rcraig57/arch-recovery-iso (MIT).

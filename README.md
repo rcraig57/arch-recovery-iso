@@ -145,19 +145,20 @@ It walks you through everything:
 
 Your system comes back up as it was.
 
-> **Heads-up on encryption and unusual layouts.** The plain case — one
-> unencrypted root partition (plus an EFI partition on UEFI) — is fully tested and
-> proven end-to-end. The newer LUKS-encryption and separate `/home` / `/boot`
-> paths are complete but **not yet hardware-tested**; check the result before you
-> rely on them.
+> **Heads-up on encryption and unusual layouts.** Two cases are proven
+> end-to-end (build → restore → boots to login): the plain single unencrypted
+> root, and an **encrypted (LUKS) root with a separate encrypted `/home`** on a
+> systemd-boot system. A separate **`/boot`** partition and the GRUB-on-encrypted
+> path are not yet verified — see Limitations.
 
 ---
 
 ## Limitations
 
-- **LUKS encryption and separate `/home` / `/boot`** are supported but **not yet
-  hardware-tested** (see the heads-up under Step 3). The plain single-root case is
-  proven.
+- **LUKS encryption with a separate `/home`** is verified on systemd-boot. A
+  separate **`/boot`** partition is **not yet verified** — and on systemd-boot a
+  separate ext4 `/boot` cannot work anyway (the boot firmware only reads FAT), so
+  that layout is really a GRUB case and is left for a later round.
 - **GRUB on an encrypted disk** is handled on a best-effort basis — if you use
   GRUB *and* encryption, check `/etc/default/grub` on the restored system.
 - The restore assumes the **target machine's firmware matches the source's**

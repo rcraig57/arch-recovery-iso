@@ -860,7 +860,10 @@ if [[ "$TGT_FIRMWARE" == "uefi" ]]; then
   msg "Formatting ESP ($ESP_PART) as FAT32 and mounting at $ESP_MNT..."
   mkfs.fat -F32 "$ESP_PART"
   mkdir -p "/mnt$ESP_MNT"
-  mount "$ESP_PART" "/mnt$ESP_MNT"
+  # Mount the ESP as vfat EXPLICITLY. Auto-detection can fail in a fresh live
+  # environment where the vfat module is not yet loaded (mount then falls back
+  # to ext4/squashfs and never tries vfat), even though the partition is valid.
+  mount -t vfat "$ESP_PART" "/mnt$ESP_MNT"
 fi
 if [[ "$SEP_HOME" == "yes" ]]; then
   mkdir -p /mnt/home
@@ -923,6 +926,18 @@ if [[ "$ENCRYPT" == "yes" ]]; then
       || sed -i -E 's/(^HOOKS=\(.*)\bencrypt\b/\1keyboard encrypt/' /etc/mkinitcpio.conf
   fi
 fi
+
+# The kernel image lives in /boot. On systems where /boot IS the ESP, that
+# image is on the ESP — which we exclude from the clone and regenerate — so it
+# is missing here. That breaks mkinitcpio's presets (no kernel to read) and
+# would leave nothing to boot. Repopulate each kernel from /usr/lib/modules
+# (which the clone DOES carry; Arch kernel packages keep vmlinuz + a pkgbase
+# file there). Harmless when /boot already has the image (ESP at /boot/efi).
+for moddir in /usr/lib/modules/*/; do
+  [[ -f "\$moddir/vmlinuz" && -f "\$moddir/pkgbase" ]] || continue
+  pkgbase="\$(cat "\$moddir/pkgbase")"
+  [[ -f "/boot/vmlinuz-\$pkgbase" ]] || cp "\$moddir/vmlinuz" "/boot/vmlinuz-\$pkgbase"
+done
 
 # Rebuild every initramfs from the (now possibly updated) config.
 mkinitcpio -P
