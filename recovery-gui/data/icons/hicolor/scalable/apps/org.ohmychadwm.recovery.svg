@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3584e4"/>
+      <stop offset="1" stop-color="#1c5fb4"/>
+    </linearGradient>
+  </defs>
+  <!-- rounded-square app tile -->
+  <rect x="4" y="4" width="56" height="56" rx="13" fill="url(#bg)"/>
+  <!-- disk platter -->
+  <circle cx="32" cy="32" r="16" fill="none" stroke="#ffffff" stroke-width="3.2" opacity="0.95"/>
+  <circle cx="32" cy="32" r="3.4" fill="#ffffff"/>
+  <!-- circular restore arrow sweeping around the platter -->
+  <path d="M 46 26 A 16 16 0 1 0 48 36"
+        fill="none" stroke="#9cffd4" stroke-width="4"
+        stroke-linecap="round"/>
+  <path d="M 45.4 17.5 L 47.6 27 L 38.2 25.2 Z" fill="#9cffd4"/>
+</svg>

@@ -1,0 +1,28 @@
+post_install() {
+  # Refresh the icon cache and desktop database so the app + icon show up.
+  gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor 2>/dev/null || true
+  update-desktop-database -q 2>/dev/null || true
+
+  cat <<'EOF'
+
+Disk Recovery Tool installed.
+
+  Launch:  recovery-tool   (or from your application menu)
+
+  Do NOT run it as root — the launcher elevates the whole app via polkit
+  (you'll be prompted for the admin password). Backups image only the used
+  blocks of each filesystem; restores ERASE the target disk and are guarded by
+  a typed ERASE confirmation.
+
+EOF
+}
+
+post_upgrade() {
+  gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor 2>/dev/null || true
+  update-desktop-database -q 2>/dev/null || true
+}
+
+post_remove() {
+  gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor 2>/dev/null || true
+  update-desktop-database -q 2>/dev/null || true
+}

@@ -1,176 +1,102 @@
-# Personal Recovery ISO Builder
+# Disk Recovery Tool
 
-Make a bootable USB/DVD image that is a **clone of your own running system** —
-your installed programs, your settings, and your home folder — so that if your
-disk dies you can put everything back on a new disk and carry on as if nothing
-happened.
+Whole-disk **backup and restore** for Arch-family Linux, built on
+[partclone](https://partclone.org) + [zstd](https://github.com/facebook/zstd),
+with a GTK4 graphical front end styled after Erik Dubois' Arch Linux Tweak Tool.
 
-This is the Arch-world equivalent of MX Linux's *MX Snapshot*. It works on plain
-**Arch**, **CachyOS**, and **Kiro**.
+It images only the **used blocks** of each filesystem (so a 1 TB disk that is
+100 GB full produces ~100 GB, not 1 TB), preserves **btrfs snapshots and
+subvolumes** and **filesystem UUIDs**, verifies every image with SHA-256, and can
+grow the last partition onto a larger disk on restore. The GUI is a thin wrapper:
+every operation runs the same audited shell scripts you can run from a terminal,
+so the GUI and CLI never drift apart.
 
-![A system restored from a recovery ISO, booting to its login screen on a fresh disk](docs/boot-test-login.png)
-
-> Verified end-to-end: a system cloned into a recovery ISO, then restored onto a
-> blank disk, boots all the way to its login screen — as shown above.
-
----
-
-## How it works (the short version)
-
-1. The script copies your live system into a temporary folder, leaving out
-   junk and secrets (a list you can edit first).
-2. It compresses that copy into a single file, `clone.sfs`.
-3. It packs `clone.sfs` into a normal Arch live ISO using `mkarchiso`.
-
-The finished ISO boots a plain, reliable Arch live environment. Your cloned
-system rides along inside it as data. To put your system back, you simply boot
-the ISO: the restore tool starts on its own after a short, cancelable countdown.
+> **Heads up:** restoring **erases the target disk**. It is guarded by a typed
+> `ERASE` confirmation and a final dialog, and the backend refuses mounted disks
+> and verifies checksums before writing anything.
 
 ---
 
-## What you need
+## Features
 
-- An Arch-based system (Arch, CachyOS, or Kiro).
-- Free disk space of about **2.5 times** the size of your data. The script
-  measures this for you and warns if you are short.
-- Four software packages. The script checks for them and offers to install any
-  that are missing:
-  - `archiso` (provides the `mkarchiso` command that builds the ISO)
-  - `arch-install-scripts` (provides `genfstab` and `arch-chroot`, used on restore)
-  - `rsync` (copies your files)
-  - `squashfs-tools` (provides `mksquashfs`, the compressor)
+- **Used-blocks-only imaging** with partclone (btrfs, ext4, vfat, exfat, xfs,
+  ntfs, f2fs), raw `partclone.dd` fallback for anything else.
+- **Complete, bit-exact backups** — all btrfs subvolumes and snapshots included.
+- **zstd compression** with a selectable level.
+- **SHA-256 verification** of every image, checked before any restore writes.
+- **Restore to a same or larger disk**, optionally growing the last partition to
+  fill the extra space.
+- **Optional bootloader re-registration** (Limine / GRUB / systemd-boot) for
+  restoring onto a different machine; same-machine restores boot via the existing
+  EFI fallback with no extra step.
+- **GTK4 GUI** with a live progress bar (parsed from partclone) and a full log,
+  plus a CLI for scripting and rescue environments.
 
----
-
-## Step 1 — Build the ISO
-
-Open a terminal in the folder that holds `build-recovery-iso.sh`.
-
-Run the build script with administrator rights. The word `sudo` means "run as
-the system administrator"; it will ask for your password:
+## Repository layout
 
 ```
-sudo ./build-recovery-iso.sh
+recovery-gui/        GTK4 application (launcher, src/, data/)
+part_clone/          backend: partclone-backup.sh, partclone-restore.sh, self-tests
+PKGBUILD             Arch package (-git)
+disk-recovery-tool.install
+LICENSE / NOTICE     GPL-3.0-or-later + credits
+docs/                notes and checklists
 ```
 
-The script will:
-
-1. **Check the four packages** and offer to install any missing ones.
-2. **Detect your boot setup** — UEFI or BIOS, systemd-boot or GRUB, where the
-   EFI partition lives, whether your root is encrypted, and whether `/home` or
-   `/boot` is on its own partition — so the restore can rebuild it correctly.
-3. **Ask about secrets.** It first asks if the ISO is for your **personal use
-   only**. If you say yes, it offers to **include your secrets** (SSH/GPG keys,
-   saved logins, password stores, shell history) so the restored system is ready
-   to use with nothing to set up again — no hand-editing required. If you say no,
-   your secrets are left out, and you can still open the exclusion list in an
-   editor to fine-tune it.
-4. **Show the exclusion list** — everything that will be *left out* of the clone.
-   **Read this carefully:** anything not on the list gets copied into the ISO.
-5. **Ask three questions** — where to do the build work, where to save the
-   finished `.iso`, and what to name it. Press **Enter** to accept each default.
-6. **Clone, compress, and build.** When it finishes it prints the path to your
-   `.iso`, a matching `.sha256` checksum file, a build log saved beside the ISO,
-   and the total build time.
-
-> **About secrets (important if you share the ISO).** By default the script
-> leaves out SSH private keys, GPG keys, password stores, browser logins, cloud
-> tokens, and shell history. The "personal use" question above is the easy way to
-> include them; removing lines from the exclusion list by hand does the same
-> thing. Either way, only include secrets in a recovery image you will keep
-> **private** — anyone who gets the ISO could read them.
-
-> **Faster builds (optional).** Compressing the clone is the slow step. By
-> default it uses a fast setting (zstd level 3). For an even quicker build at the
-> cost of a larger ISO, set the level (1 is fastest) when you start the script:
->
-> ```
-> sudo CLONE_ZSTD_LEVEL=1 ./build-recovery-iso.sh
-> ```
-
----
-
-## Step 2 — Write the ISO to a USB stick
-
-Plug in a USB stick that you do not mind erasing (8 GB or larger).
-
-Find its device name. The following command lists your disks and their sizes so
-you can identify the stick:
+## Install (Arch / CachyOS / Kiro / EndeavourOS / …)
 
 ```
-lsblk -dpno NAME,SIZE,MODEL
+git clone https://github.com/rcraig57/disk-recovery-tool.git
+cd disk-recovery-tool
+makepkg -si
 ```
 
-Suppose the stick is `/dev/sdX` (replace `sdX` with the real name — getting this
-wrong erases the wrong disk). Write the ISO to it. Here `if=` is the input file
-and `of=` is the output device; `status=progress` shows a progress bar:
+`makepkg -si` pulls the dependencies and installs the package. Afterwards launch
+**Disk Recovery Tool** from your application menu, or run `recovery-tool`.
+
+> Do **not** run it as root yourself — the launcher elevates the whole app once
+> via `pkexec` (your desktop's polkit agent prompts for the admin password).
+> partclone, losetup and mount all need root.
+
+## Use it from the terminal (no GUI / rescue environment)
+
+The scripts in `part_clone/` are standalone. Back up `/dev/sdX` to a folder:
 
 ```
-sudo dd if=your-recovery.iso of=/dev/sdX bs=4M status=progress oflag=sync
+sudo ./part_clone/partclone-backup.sh /dev/sdX /mnt/storage
 ```
 
----
-
-## Step 3 — Restore onto a new disk
-
-Boot the target machine from the USB stick (use the firmware boot menu). You
-arrive at a plain Arch live environment, logged in as `root`, and the restore
-tool **starts automatically** after a 10-second countdown. (Press any key during
-the countdown to cancel and get a normal shell instead; you can start the tool
-by hand at any time by running the command below.)
+Restore a backup folder onto a target disk (this erases it):
 
 ```
-/root/restore-system.sh
+sudo ./part_clone/partclone-restore.sh /mnt/storage/HOST-img-YYYYMMDD-HHMMSS /dev/sdX
 ```
 
-It walks you through everything:
+Both are interactive by default and accept flags for unattended use
+(`--yes`, `--erase`, `--grow`/`--no-grow`, `--bootloader`/`--no-bootloader`,
+`--no-reboot`). The source disk for a backup must be unmounted — image a disk you
+did **not** boot from (e.g. from a live USB, or a second drive).
 
-1. **Verifies** the clone is undamaged (checks its `.sha256`) **before touching
-   any disk**.
-2. **Shows a numbered list of disks** and asks you to pick one by number — no
-   typing device paths. The USB stick you booted from is left off the list so you
-   cannot wipe it by mistake.
-3. **Checks the disk is big enough** for your clone *before* erasing anything, so
-   a too-small disk is refused instead of being wiped and then failing.
-4. **Asks about encryption.** If your source system used LUKS encryption it
-   offers to encrypt the new disk the same way; if it did not, it offers to add
-   encryption anyway. Choose, and (if yes) enter a passphrase.
-5. **Shows the plan and asks you to type `ERASE`** to confirm — the chosen disk
-   is then wiped completely.
-6. Partitions and formats the disk (recreating a separate `/home` or `/boot` if
-   your original had one), unpacks your clone onto it, writes a fresh
-   `/etc/fstab`, rebuilds the boot images, and reinstalls the matching bootloader.
-7. **Offers to reboot or power off** when it finishes, reminding you to remove the
-   USB stick first.
+## How it works
 
-Your system comes back up as it was.
+`partclone-backup.sh` writes, per partition: a compressed image
+(`partclone.<fs> -c | zstd`), a `.sha256`, the GPT/MBR layout (`sfdisk -d`), a
+manifest, and metadata. `partclone-restore.sh` verifies all checksums, recreates
+the partition table, restores each image, optionally grows the last partition,
+and optionally re-registers the bootloader in a chroot. Because images are
+block-exact and UUIDs are preserved, the restored system's `fstab` and bootloader
+command line already match.
 
-> **Heads-up on encryption and unusual layouts.** Two cases are proven
-> end-to-end (build → restore → boots to login): the plain single unencrypted
-> root, and an **encrypted (LUKS) root with a separate encrypted `/home`** on a
-> systemd-boot system. A separate **`/boot`** partition and the GRUB-on-encrypted
-> path are not yet verified — see Limitations.
+## Dependencies
 
----
+`python` `python-gobject` `gtk4` `partclone` `zstd` `util-linux` `gptfdisk`
+`parted` `btrfs-progs` `e2fsprogs` `polkit`. Optional: `xorg-xhost` (to run the
+GUI as root under X11/XWayland), `limine`/`grub` (bootloader re-registration),
+`dosfstools` (loopback self-test). The PKGBUILD declares all of these.
 
-## Limitations
+## Credits & license
 
-- **LUKS encryption with a separate `/home`** is verified on systemd-boot. A
-  separate **`/boot`** partition is **not yet verified** — and on systemd-boot a
-  separate ext4 `/boot` cannot work anyway (the boot firmware only reads FAT), so
-  that layout is really a GRUB case and is left for a later round.
-- **GRUB on an encrypted disk** is handled on a best-effort basis — if you use
-  GRUB *and* encryption, check `/etc/default/grub` on the restored system.
-- The restore assumes the **target machine's firmware matches the source's**
-  (both UEFI, or both BIOS). Restoring a UEFI clone onto a BIOS-only machine, or
-  vice versa, is not handled.
+Engine: **partclone** (GPL-2.0-or-later). GUI look/feel and launcher modelled on
+**Erik Dubois' Arch Linux Tweak Tool** (GPL-3.0). See `NOTICE` for full credits.
 
----
-
-## Files in this folder
-
-- `build-recovery-iso.sh` — the build script you run.
-- `recovery-exclude.list` — the editable list of what to leave out. It is created
-  automatically the first time you run the build script.
-- `restore-system.sh` — the restore tool. You do **not** run this here; the build
-  script writes a copy of it into the ISO.
+Licensed under **GPL-3.0-or-later** — see `LICENSE`.

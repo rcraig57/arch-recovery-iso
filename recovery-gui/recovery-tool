@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+#
+# recovery-tool — launcher for the Disk Recovery Tool GUI.
+#
+# Do NOT run this as root. It elevates the whole app once via pkexec (the
+# desktop's polkit agent prompts for the admin password); partclone, losetup and
+# mount all need root. The pkexec env line mirrors the Arch Linux Tweak Tool's
+# approach for running a GTK4 app under Wayland as root (software rendering to
+# avoid GPU-context issues across the privilege boundary).
+#
+set -euo pipefail
+
+echo "---------------------------------------------------------------------------"
+echo "[INFO]: Disk Recovery Tool — checking session"
+
+if [[ "$(whoami)" == "root" ]]; then
+  echo "[ERROR]: Do not run this launcher as root; let polkit elevate it." >&2
+  exit 1
+fi
+
+if [[ -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
+  echo "[ERROR]: Neither DISPLAY nor WAYLAND_DISPLAY is set (no graphical session)." >&2
+  exit 1
+fi
+
+# Resolve the app + backend locations, working both straight from the source
+# tree (dev) and from a system install (/usr/share/recovery-tool).
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
+APP=""
+for cand in "$SCRIPT_DIR/src/recovery_tool.py" \
+            "/usr/share/recovery-tool/src/recovery_tool.py"; do
+  [[ -f "$cand" ]] && { APP="$cand"; break; }
+done
+[[ -n "$APP" ]] || { echo "[ERROR]: recovery_tool.py not found." >&2; exit 1; }
+
+# Pass the backend script location explicitly so the elevated (root) process
+# finds the partclone scripts regardless of $HOME.
+BACKEND_DIR=""
+for cand in "$SCRIPT_DIR/../part_clone" \
+            "/usr/share/recovery-tool/scripts"; do
+  if [[ -f "$cand/partclone-backup.sh" ]]; then
+    BACKEND_DIR="$(cd -- "$cand" && pwd)"
+    break
+  fi
+done
+
+RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+echo "[INFO]: DISPLAY=${DISPLAY:-unset}  WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-unset}"
+echo "[INFO]: XDG_SESSION_TYPE=${XDG_SESSION_TYPE:-unset}  XDG_RUNTIME_DIR=$RUNTIME_DIR"
+
+# The elevated (root) process has no session D-Bus, so GTK's default dconf
+# settings backend floods stderr trying to autolaunch one. Use the in-memory
+# GSettings backend and disable the a11y bus to keep the output clean.
+NOISE_ENV=(GSETTINGS_BACKEND=memory NO_AT_BRIDGE=1 GTK_A11Y=none)
+
+run_wayland() {
+  echo "[INFO]: Starting under Wayland (root reaches the user's wayland socket)"
+  pkexec env \
+    "${NOISE_ENV[@]}" \
+    WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-}" \
+    XDG_RUNTIME_DIR="$RUNTIME_DIR" \
+    GDK_BACKEND=wayland \
+    GSK_RENDERER=cairo \
+    LIBGL_ALWAYS_SOFTWARE=1 \
+    RECOVERY_BACKEND_DIR="${BACKEND_DIR:-}" \
+    python3 "$APP" "$@"
+}
+
+run_x11() {
+  echo "[INFO]: Starting under X11 (granting local root access to the display)"
+  local xauth="${XAUTHORITY:-$HOME/.Xauthority}"
+  # Let the local root user talk to our X server just for this launch. This is
+  # the scoped form (server-interpreted, local root only) — not a blanket xhost +.
+  local granted=0
+  if command -v xhost >/dev/null 2>&1; then
+    xhost +si:localuser:root >/dev/null 2>&1 && granted=1
+  fi
+  local rc=0
+  if pkexec env \
+      "${NOISE_ENV[@]}" \
+      DISPLAY="${DISPLAY:-}" \
+      XAUTHORITY="$xauth" \
+      XDG_RUNTIME_DIR="$RUNTIME_DIR" \
+      GDK_BACKEND=x11 \
+      GSK_RENDERER=cairo \
+      LIBGL_ALWAYS_SOFTWARE=1 \
+      RECOVERY_BACKEND_DIR="${BACKEND_DIR:-}" \
+      python3 "$APP" "$@"; then
+    rc=0
+  else
+    rc=$?
+  fi
+  [[ "$granted" == 1 ]] && xhost -si:localuser:root >/dev/null 2>&1 || true
+  return "$rc"
+}
+
+# Prefer Wayland when its socket is actually reachable (cleaner: no X auth
+# needed); otherwise fall back to X11. The compositor here is Niri/XWayland, so
+# loginctl may report "x11" even when a wayland socket exists.
+if [[ -n "${WAYLAND_DISPLAY:-}" && -S "$RUNTIME_DIR/${WAYLAND_DISPLAY}" ]]; then
+  run_wayland "$@"
+elif [[ -n "${DISPLAY:-}" ]]; then
+  run_x11 "$@"
+else
+  echo "[ERROR]: No usable display (no WAYLAND_DISPLAY socket and no DISPLAY)." >&2
+  exit 1
+fi
+echo "---------------------------------------------------------------------------"

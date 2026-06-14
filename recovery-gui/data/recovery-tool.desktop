@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Disk Recovery Tool
+GenericName=Disk Backup and Restore
+Comment=Whole-disk backup and restore with partclone + zstd
+Exec=recovery-tool
+Icon=org.ohmychadwm.recovery
+Terminal=false
+Type=Application
+Categories=Utility;Archiving;Filesystem;
+Keywords=backup;restore;partclone;disk;image;recovery;clone;
+StartupNotify=true

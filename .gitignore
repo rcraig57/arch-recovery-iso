@@ -9,3 +9,7 @@ recovery-exclude.list
 # Build work directories
 recovery-build/
 archiso-work/
+
+# Python bytecode
+__pycache__/
+*.pyc

@@ -1,0 +1,55 @@
+/* Recovery Tool — styling that mirrors the Arch Linux Tweak Tool feel:
+   roomy window margins, a 20px page title, a weighted sidebar, and a dark
+   monospace log area. */
+
+window > box {
+    margin: 0;
+}
+
+/* Page titles (label#title). */
+label#title {
+    font-size: 20px;
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
+/* Left navigation. */
+#sidebar {
+    background-color: alpha(currentColor, 0.03);
+}
+
+#sidebar label {
+    font-weight: 500;
+    padding-left: 15px;
+    padding-right: 15px;
+    padding-top: 2px;
+    padding-bottom: 2px;
+}
+
+/* Current-step line above the progress bar. */
+label#step_label {
+    font-weight: 500;
+    margin-top: 4px;
+}
+
+/* Inline validation messages. */
+label#error_label {
+    color: #e01b24;
+    font-weight: 500;
+}
+
+/* Dark log view, like ATT's #textview_log. */
+#textview_log {
+    background-color: #232627;
+    color: #fcfcfc;
+}
+
+#textview_log text {
+    background-color: #232627;
+    color: #fcfcfc;
+    font-family: 'MesloLGS NF', 'JetBrains Mono', 'Open Sans', monospace;
+}
+
+progressbar text {
+    font-size: 12px;
+}

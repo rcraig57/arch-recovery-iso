@@ -1,0 +1,28 @@
+Disk Recovery Tool
+Copyright (C) 2026 rcraig57
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version. See the LICENSE file for the full text.
+
+----------------------------------------------------------------------------
+Credits and third-party components
+----------------------------------------------------------------------------
+
+partclone — https://partclone.org  (GPL-2.0-or-later)
+    The filesystem-aware imaging engine that does the real backup and restore
+    work. This project invokes partclone as an external program; it does not
+    include or modify partclone's source. partclone's "or-later" clause permits
+    its use alongside this GPL-3.0 project.
+
+Arch Linux Tweak Tool (ATT) by Erik Dubois — https://www.arcolinux.com  (GPL-3.0)
+    The look and feel of the GTK4 interface, the pkexec/Wayland launcher
+    pattern, and several CSS values are modelled on ATT. With thanks to Erik
+    Dubois and the ArcoLinux community.
+
+zstd — https://github.com/facebook/zstd
+    Compression of the partition images.
+
+GTK 4 / PyGObject
+    The graphical toolkit and Python bindings.
